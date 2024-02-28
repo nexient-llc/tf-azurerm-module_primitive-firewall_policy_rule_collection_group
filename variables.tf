@@ -11,7 +11,7 @@
 // limitations under the License.
 
 variable "name" {
-  description = "The nam(Required) The name which should be used for this Firewall Policy Rule Collection Group. Changing this forces a new Firewall Policy Rule Collection Group to be created."
+  description = "(Required) The name which should be used for this Firewall Policy Rule Collection Group. Changing this forces a new Firewall Policy Rule Collection Group to be created."
   type        = string
 }
 
