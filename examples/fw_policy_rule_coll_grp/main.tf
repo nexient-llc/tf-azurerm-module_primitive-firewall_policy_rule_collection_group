@@ -25,6 +25,7 @@ module "firewall_policy" {
   resource_group_name = module.resource_group.name
   location            = var.location
 
+  depends_on = [module.resource_group]
 }
 
 module "firewall_policy_rule_collection_group" {

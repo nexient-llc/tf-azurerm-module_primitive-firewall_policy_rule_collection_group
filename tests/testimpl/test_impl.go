@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
-	internalNetwork "github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	armNetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/nexient-llc/lcaf-component-terratest-common/lib/azure/configure"
 	"github.com/nexient-llc/lcaf-component-terratest-common/lib/azure/login"
@@ -20,17 +22,22 @@ const varFile string = "test.tfvars"
 func TestFirewall(t *testing.T, ctx types.TestContext) {
 
 	envVarMap := login.GetEnvironmentVariables()
-	clientID := envVarMap["clientID"]
-	clientSecret := envVarMap["clientSecret"]
-	tenantID := envVarMap["tenantID"]
 	subscriptionID := envVarMap["subscriptionID"]
 
-	spt, err := login.GetServicePrincipalToken(clientID, clientSecret, tenantID)
+	credential, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		t.Fatalf("Error getting Service Principal Token: %v", err)
+		t.Fatalf("Unable to get credentials: %e\n", err)
+	}
+	options := arm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Cloud: cloud.AzurePublic,
+		},
 	}
 
-	firewallPolicyRuleCollectionGroupsClient := GetFirewallPolicyRuleCollectionGroupsClient(spt, subscriptionID)
+	firewallPolicyRuleCollectionGroupsClient, err := armNetwork.NewFirewallPolicyRuleCollectionGroupsClient(subscriptionID, credential, &options)
+	if err != nil {
+		t.Fatalf("Error getting firewall policy rule collection groups client: %v", err)
+	}
 
 	terraformOptions := configure.ConfigureTerraform(terraformDir, []string{terraformDir + "/" + varFile})
 
@@ -41,7 +48,7 @@ func TestFirewall(t *testing.T, ctx types.TestContext) {
 			policyName := terraform.Output(t, terraformOptions, "policy_name")
 			policyRuleCollectionGroupName := terraform.Output(t, terraformOptions, "policy_rule_collection_group_name")
 
-			prcg, err := firewallPolicyRuleCollectionGroupsClient.Get(context.Background(), resourceGroupName, policyName, policyRuleCollectionGroupName)
+			prcg, err := firewallPolicyRuleCollectionGroupsClient.Get(context.Background(), resourceGroupName, policyName, policyRuleCollectionGroupName, nil)
 			if err != nil {
 				t.Fatalf("Error getting policy rule collection group: %v", err)
 			}
@@ -49,10 +56,4 @@ func TestFirewall(t *testing.T, ctx types.TestContext) {
 			assert.Equal(t, policyRuleCollectionGroupName, *prcg.Name)
 		})
 	}
-}
-
-func GetFirewallPolicyRuleCollectionGroupsClient(spt *adal.ServicePrincipalToken, subscriptionID string) internalNetwork.FirewallPolicyRuleCollectionGroupsClient {
-	firewallPolicyRuleCollectionGroupsClient := internalNetwork.NewFirewallPolicyRuleCollectionGroupsClient(subscriptionID)
-	firewallPolicyRuleCollectionGroupsClient.Authorizer = autorest.NewBearerAuthorizer(spt)
-	return firewallPolicyRuleCollectionGroupsClient
 }
